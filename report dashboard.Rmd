@@ -35,7 +35,7 @@ library(tidyquant)
 
 #pull .csv() for today by using the first 10 character for filtering
 
-dirPath <- "C:/Users/patri/Documents/covid19/Ontario/LiveShinyDashboard/ShinyAppProj/Datasets/"
+dirPath <- "C:/Users/MyDirectory" #put your current directory here 
 
 target_files <- as.data.frame(list.files(dirPath))
 names(target_files) <- "files"
