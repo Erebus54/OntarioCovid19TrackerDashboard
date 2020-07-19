@@ -1,0 +1,664 @@
+---
+title: "Ontario COVID-19 Reporting Dashboard"
+author: Patrick Reza Schnurbusch 
+date: '`r paste("Updated: ", format(Sys.time(), "%Y-%m-%d %H:%M %Z"))`'
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+---
+
+<b> A dashboard to display and track COVID-19 pandemic data in Ontario </b>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(readr)
+library(dplyr)
+library(plotly)
+library(DT)
+library(tidyverse)
+
+library(ggplot2)
+library(plyr)
+library(scales)
+library(zoo)
+library(tidyquant) 
+
+# urlfile="https://data.ontario.ca/dataset/f4f86e54-872d-43f8-8a86-3892fd3cb5e6/resource/ed270bb8-340b-41f9-a7c6-e8ef587e6d11/download/covidtesting.csv"
+# 
+# caseStatusOntario <-read.csv(url(urlfile))
+# 
+# #data dict URL 
+# #https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario
+# 
+
+
+#pull .csv() for today by using the first 10 character for filtering
+
+dirPath <- "C:/Users/patri/Documents/covid19/Ontario/LiveShinyDashboard/ShinyAppProj/Datasets/"
+
+target_files <- as.data.frame(list.files(dirPath))
+names(target_files) <- "files"
+target_files$download_date <- as.Date(substr(target_files$files, 1, 10))
+
+target_files <- target_files %>% 
+  dplyr::arrange(download_date) %>% 
+  dplyr::slice_tail()
+
+
+#now we have 1 row that has the most recent date and the location of the target 
+dirPath <- paste0("C:/Users/patri/Documents/covid19/Ontario/LiveShinyDashboard/ShinyAppProj/Datasets/", target_files$files)
+
+caseStatusOntario <-read.csv(file = paste(dirPath))
+
+caseStatusOntario$Reported.Date <- as.Date(caseStatusOntario$Reported.Date)
+```
+
+TESTING
+=====================================  
+
+
+Row {data-width=1000}
+-----------------------------------------------------------------------
+
+### <b> Daily Confirmed Positives </b>
+
+```{r}
+fig <- plot_ly(x = caseStatusOntario$Reported.Date, 
+               y = caseStatusOntario$Confirmed.Positive, 
+               type = 'scatter', mode = 'lines', name = 'Confirmed Positive', 
+               fill = 'tozeroy',
+        fillcolor = '#2858a6',
+        line = list(width = 0.5))
+
+fig <- fig %>% layout(title = "",
+                      yaxis = list(title = 'Tested Positive'),
+                      xaxis = list(title = 'Reported Date'),
+                      hovermode = "x unified")
+
+fig
+```
+
+Row {data-width=1000}
+-----------------------------------------------------------------------
+### <b> Positives vs Total Tested </b>
+```{r}
+fig <- plot_ly(caseStatusOntario, x = ~Reported.Date, y = ~Confirmed.Positive, type = 'bar', name = 'Confirmed Positives', marker = list(color = 'FF5959'))
+fig <- fig %>% add_trace(y = ~Total.tests.completed.in.the.last.day, name = 'Total Tested', marker = list(color = '6EC5E9'))
+fig <- fig %>% layout(title = "Positives vs Total Tested", 
+                      yaxis = list(title = 'Count'), barmode = 'stack', 
+                      hovermode = "x unified")
+
+fig
+
+```
+
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### <b> Test Positive Rate </b> 
+
+```{r}
+test.positive.rate <- caseStatusOntario %>% 
+  dplyr::select(Reported.Date, Confirmed.Positive, Total.tests.completed.in.the.last.day) %>% 
+  dplyr::mutate(Test.positive.rate = round(Confirmed.Positive/Total.tests.completed.in.the.last.day*100,2))
+
+fig <- plot_ly(test.positive.rate, x = ~Reported.Date, y = ~Test.positive.rate, type = 'bar', name = 'Test Positive Rate', 
+               marker = list(color = '#10fbc9'))
+fig <- fig %>% layout(title = "", 
+                      yaxis = list(title = 'Test Positive (%)'),
+                      hovermode = "x unified")
+
+fig
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CASE STATUSES
+===================================== 
+Row {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### <b> Linear Scale </b>
+```{r}
+fig <- plot_ly(x = ~caseStatusOntario$Reported.Date, y = ~caseStatusOntario$Total.Cases, type = 'scatter', mode = 'none', name = 'Total Cases', fill = 'tozeroy',
+               fillcolor = '#FFC56C')
+fig <- fig %>% add_trace(x = ~caseStatusOntario$Reported.Date, y = ~caseStatusOntario$Resolved, name = 'Resolved', fill = 'tozeroy',
+                         fillcolor = '#6EC5E9')
+fig <- fig %>% add_trace(x = ~caseStatusOntario$Reported.Date, y = ~caseStatusOntario$Deaths, name = 'Deaths', fill = 'tozeroy',
+                         fillcolor = '#FF5959')
+
+fig <- fig %>% layout(title = "Daily Cases by Status", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Cumulative Case Counts'), 
+                      hovermode = "x unified")
+
+fig <- fig %>% 
+  layout(xaxis = list(rangeselector = list(
+    buttons = list(
+      
+      list(
+        count = 1,
+        label = "1 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 3,
+        label = "3 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 6,
+        label = "6 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 1,
+        label = "1 yr",
+        step = "year",
+        stepmode = "backward"),
+      
+      list(
+        count = 1,
+        label = "YTD",
+        step = "year",
+        stepmode = "todate"),
+      list(step = "all")))
+    #,rangeslider = list(type = "date")
+    ))
+
+fig
+```
+
+### <b> Logarithmic Scale </b>
+```{r}
+fig <- fig %>% layout(yaxis = list(type = "log"))
+
+fig <- fig %>% layout(title = "Daily Cases by Status",
+                      xaxis = list(title = "Daily Cases by Status (Log)"),
+                      yaxis = list (title = "Cumulative Case Counts (Log)"))
+fig
+
+```
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### <b> New Cases (Relative Change) </b>
+
+```{r}
+#plotting the percentage increase for each case 
+case.percentages <- caseStatusOntario %>% 
+  dplyr::select(Reported.Date, Total.Cases, Resolved, Deaths)
+ 
+case.percentages <- case.percentages %>%
+  mutate(New_Total.Cases = Total.Cases - lag(Total.Cases,1, default = 0.0), 
+         Total.Cases.Change.Pct = round(New_Total.Cases/Total.Cases*100 ,2), 
+         
+         New_Resolved = Resolved - lag(Resolved,1, default = 0.0), 
+         Resolved.Change.Pct = round(New_Resolved/Resolved*100 ,2), 
+         
+         New_Deaths = Deaths - lag(Deaths,1, default = 0.0), 
+         Deaths.Change.Pct = round(New_Deaths/Deaths*100 ,2))
+```
+
+
+```{r}
+fig <- plot_ly(case.percentages, x = ~Reported.Date, y = ~Total.Cases.Change.Pct, type = 'bar', 
+               name = 'New Total Cases', 
+               marker = list(color = '#FFC56C'))
+
+fig <- fig %>% add_trace(y = ~Resolved.Change.Pct, 
+                         name = 'New Resolved', 
+                         marker = list(color = '#6EC5E9'))
+
+fig <- fig %>% add_trace(y = ~Deaths.Change.Pct, 
+                         name = 'New Deaths', 
+                         marker = list(color = '#FF5959'))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Relative Change (%)'), 
+                      barmode = 'stack', 
+                      hovermode = "x unified")
+fig
+```
+
+
+### <b> New Cases (Absolute Change) </b>
+    
+```{r}
+fig <- plot_ly(case.percentages, x = ~case.percentages$Reported.Date, y = ~case.percentages$New_Total.Cases, type = 'bar', 
+               name = 'New Total Cases', 
+               marker = list(color = '#FFC56C'))
+
+fig <- fig %>% add_trace(y = ~case.percentages$New_Resolved, 
+                         name = 'New Resolved',
+                         marker = list(color = '#6EC5E9'))
+
+fig <- fig %>% add_trace(x = ~case.percentages$Reported.Date, y = ~case.percentages$New_Deaths, 
+                         name = 'New Deaths', 
+                         marker = list(color = '#FF5959'))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Absolute Change (n)'), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+
+fig
+```
+
+Row 
+-------------------------------------
+    
+### <b> New Cases vs. New Recoveries </b>
+    
+```{r}
+newCases_vs_newRecoveries <- caseStatusOntario %>% 
+  dplyr::select(Reported.Date, Confirmed.Positive, Resolved) %>% 
+  dplyr::mutate(NewCases = Confirmed.Positive - lag(Confirmed.Positive,1, default = 0.0), 
+                NewRecoveries = Resolved - lag(Resolved,1, default = 0.0))
+  
+fig <- plot_ly(data = newCases_vs_newRecoveries, 
+               x = ~Reported.Date, y = ~NewCases, type = 'scatter', 
+               mode = 'lines', name = 'New Cases', 
+               line = list(color = 'FF5959', width = 2.5))
+
+fig <- fig %>% add_trace(x = ~newCases_vs_newRecoveries$Reported.Date, y = ~newCases_vs_newRecoveries$NewRecoveries, 
+                         name = 'New Recoveries', mode = 'lines',
+                         line = list(color = '1CE8A9', width = 2.5))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'New Daily COVID-19 Cases + Cured Cases'), 
+                      hovermode = "x unified")
+fig
+```
+
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+    
+```{r}
+#hospitalizations 
+hospitalizations <- caseStatusOntario %>% 
+  dplyr::select(Reported.Date, 
+                Number.of.patients.hospitalized.with.COVID.19, 
+                Number.of.patients.in.ICU.with.COVID.19, 
+                Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19) %>% 
+  
+  dplyr::mutate(
+    #absolute changes 
+                New_hospitalized = Number.of.patients.hospitalized.with.COVID.19 - lag(Number.of.patients.hospitalized.with.COVID.19,1, default = 0.0),
+                New_ICU = Number.of.patients.in.ICU.with.COVID.19 - lag(Number.of.patients.in.ICU.with.COVID.19,1, default = 0.0), 
+                New_ventilator = Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19 - lag(Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19,1, default = 0.0),
+                
+                #relative changes 
+                
+                New_hospitalized.pct = round(New_hospitalized/Number.of.patients.hospitalized.with.COVID.19*100 ,2), 
+                New_ICU.pct = round(New_ICU/Number.of.patients.in.ICU.with.COVID.19*100 ,2), 
+                New_ventilator.pct = round(New_ventilator/Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19*100 ,2))
+
+```
+
+### <b> Current Hospitalizations </b>
+```{r}
+fig <- plot_ly(hospitalizations, x = ~Reported.Date, y = ~Number.of.patients.hospitalized.with.COVID.19, 
+               type = 'scatter', 
+               mode = 'markers',
+               name = 'Patients Hospitalized', 
+               marker = list(color = '#2C82C9', size = 10))
+
+fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.with.COVID.19, name = 'Intensive Care Patients', 
+                         marker = list(color = '#FCB941', size = 10))
+
+fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19, name = 'ICU Ventilator Patients', 
+                         marker = list(color = '#FC6042', size = 10))
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = ''), 
+                      yaxis = list(title = 'Number of Patients'), barmode = 'stack', 
+                      hovermode = "x unified")
+fig
+```
+
+### <b> Change in Current Hospitalizations (Absolute) </b>
+
+```{r}
+fig <- plot_ly(data = hospitalizations, x = ~Reported.Date,y = ~New_hospitalized, 
+               type = 'scatter',
+               mode = 'lines+markers', 
+               name = "Patients Hospitalized", 
+               marker = list(color = '#2C82C9'),
+               line = list(color = '#2C82C9', width = 1)
+) 
+
+fig <- fig %>% add_trace(y = ~New_ICU, name = "Intensive Care Patients", mode = 'lines+markers',
+                         marker = list(color = '#FCB941'),
+                         line = list(color = '#FCB941', width = 1)
+)
+
+fig <- fig %>% add_trace(y = ~New_ventilator, name = "ICU Ventilator Patients", mode = 'lines+markers',
+                         marker = list(color = '#FC6042'),
+                         line = list(color = '#FC6042', width = 1)
+)
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = ''), 
+                      yaxis = list(title = 'Change in Patients (n)'), barmode = 'stack', 
+                      hovermode = "x unified")
+fig
+```
+
+### <b> Change in Current Hospitalizations (Relative) </b> 
+
+```{r}
+fig <- plot_ly(data = hospitalizations, x = ~Reported.Date,y = ~New_hospitalized.pct, 
+               type = 'scatter',
+               mode = 'lines+markers', 
+               name = "Patients Hospitalized", 
+               marker = list(color = '#2C82C9'), 
+               line = list(color = '#2C82C9', width = 1)
+               ) 
+
+fig <- fig %>% add_trace(y = ~New_ICU.pct, name = "Intensive Care Patients", mode = 'lines+markers',
+                         marker = list(color = '#FCB941'),
+                         line = list(color = '#FCB941', width = 1)
+                         )
+
+fig <- fig %>% add_trace(y = ~New_ventilator.pct, name = "ICU Ventilator Patients", mode = 'lines+markers',
+                         marker = list(color = '#FC6042'),
+                         line = list(color = '#FC6042', width = 1)
+                         )
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = ''),  
+                      yaxis = list(title = 'Change in Patients (%)'), barmode = 'stack', 
+                      hovermode = "x unified")
+fig
+```
+
+RATES
+===================================== 
+
+### Pandemic Rates
+
+```{r}
+
+disease.rate <- caseStatusOntario %>% 
+  dplyr::select(Reported.Date, Total.Cases, Deaths) %>% 
+  dplyr::mutate(death.rates.per.hundtho = round(Deaths / 14750000 * 100000,3),
+                death.rate.pct = round(death.rates.per.hundtho/1000,3), 
+                New_Total.Cases = Total.Cases - lag(Total.Cases,1, default = 0.0),
+                incidence.rate = round(New_Total.Cases / 14750000 * 100000,3), 
+                prevalence.rate = round(Total.Cases / 14750000 * 100000,3))  
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+### <b> Death Rates per 100K </b> 
+```{r}
+fig <- plot_ly(data = disease.rate, 
+               x = ~Reported.Date, 
+               y = ~death.rates.per.hundtho,
+               type = 'scatter', 
+               mode = 'markers', 
+               
+               # Hover text:
+               text = ~paste("Reported Date: ", Reported.Date, 
+                             '<br> <b>Death Rate Capita: ', death.rates.per.hundtho, '<b>'),
+
+               marker = list(size = 10, 
+                             opacity = 0.9, 
+                              color = '#FF5959'))
+
+fig <- fig %>% layout(title = '',
+                      yaxis = list(title = "Death Rate", zeroline = FALSE),
+                      xaxis = list(title = " ", zeroline = FALSE),
+                      hovermode = "x unified")
+
+fig
+```
+
+### <b> Incidence Rates per 100K </b> 
+```{r}
+fig <- plot_ly(data = disease.rate, 
+               x = ~Reported.Date, 
+               y = ~incidence.rate,
+               type = 'scatter', 
+               mode = 'markers', 
+               
+               # Hover text:
+               text = ~paste("Reported Date: ", Reported.Date, 
+                             '<br> <b>Incidence Rate per Capita: ', incidence.rate, '<b>'),
+               
+               marker = list(size = 10, 
+                             opacity = 0.9,
+                             color = '#1CE8A9'))
+
+fig <- fig %>% layout(title = '',
+                      yaxis = list(title = "Incidence Rate", zeroline = FALSE),
+                      xaxis = list(title = " ", zeroline = FALSE),
+                      hovermode = "x unified")
+
+fig
+```
+
+### <b> Prevalence Rates per 100K </b>
+```{r}
+fig <- plot_ly(data = disease.rate, 
+               x = ~Reported.Date, 
+               y = ~prevalence.rate,
+               type = 'scatter', 
+               mode = 'markers', 
+               
+               # Hover text:
+               text = ~paste("Reported Date: ", Reported.Date, 
+                             '<br> <b>Prevalence Rate per Capita: ', prevalence.rate, '<b>'),
+               
+               marker = list(size = disease.rate$prevalence.rate, 
+                             opacity = 0.9, color = '#173F5F'))
+
+fig <- fig %>% layout(title = '',
+                      yaxis = list(title = "Prevalence.rate Rate", zeroline = FALSE),
+                      xaxis = list(title = " ", zeroline = FALSE),
+                      hovermode = "x unified")
+
+fig
+```
+
+Row 
+-------------------------------------
+
+```{r}
+disease.rate <- disease.rate %>% 
+  dplyr::arrange(desc(Reported.Date))
+
+datatable(disease.rate, 
+          colnames = c('Reported Date', 'Total Cases', 'Deaths', 'Death Rate', 'Death Rate Percent', 'New Cases', 'Incidence Rate', 'Prevalence Rate'),
+          class = 'cell-border stripe')
+```
+
+
+LONG TERM CARE HOMES
+===================================== 
+```{r}
+ltc_cases <- caseStatusOntario %>% 
+  dplyr::select("Reported.Date","Total.Positive.LTC.Resident.Cases",
+                "Total.Positive.LTC.HCW.Cases",                            
+                "Total.LTC.Resident.Deaths",
+                "Total.LTC.HCW.Deaths") %>% 
+  drop_na() %>% 
+  
+  #calc the absolute change (new numbers) 
+  dplyr::mutate(New_LTC.Resident.Cases = Total.Positive.LTC.Resident.Cases - lag(Total.Positive.LTC.Resident.Cases,1, default = 0.0), 
+                New_LTC.HCW.Cases = Total.Positive.LTC.HCW.Cases - lag(Total.Positive.LTC.HCW.Cases, 1, default = 0.0),
+                New_LTC.Resident.Deaths = Total.LTC.Resident.Deaths - lag(Total.LTC.Resident.Deaths, 1, default = 0.0),
+                New_LTC.HCW.Deaths = Total.LTC.HCW.Deaths - lag(Total.LTC.HCW.Deaths, 1, default = 0.0),
+                #calculating the relative change as percentage
+                
+                New_LTC.Resident.Pct = round(New_LTC.Resident.Cases/Total.Positive.LTC.Resident.Cases * 100, 2),
+                New_LTC.HCW.Pct = round(New_LTC.HCW.Cases/Total.Positive.LTC.HCW.Cases * 100, 2), 
+                New_LTC.Resident.Deaths.Pct = round(New_LTC.Resident.Deaths/Total.LTC.Resident.Deaths * 100, 2),
+                New_LTC.HCW.Deaths.Pct = round(New_LTC.HCW.Deaths/Total.LTC.HCW.Deaths * 100, 2)
+    ) 
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+### <b> Daily Cases </b> 
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$Total.Positive.LTC.Resident.Cases, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#C7CEEA')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$Total.Positive.LTC.HCW.Cases, name = 'Health Care Workers', marker = list(color = '#FFB7B2')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "Cumulative Case Counts"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+```
+
+### <b> New Cases (Relative Change) </b>
+
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$New_LTC.Resident.Pct, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#C7CEEA')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$New_LTC.HCW.Pct, name = 'Health Care Workers', marker = list(color = '#FFB7B2')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "New Cases (%)"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+
+```
+
+### <b> New Cases (Absolute Change) </b>
+
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$New_LTC.Resident.Cases, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#C7CEEA')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$New_LTC.HCW.Cases, name = 'Health Care Workers', marker = list(color = '#FFB7B2')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "New Cases"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+### <b> Deaths </b>
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$Total.LTC.Resident.Deaths, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#AADAFF')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$Total.LTC.HCW.Deaths, name = 'Health Care Workers', marker = list(color = '#FF5251')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "Cumulative Case Counts"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+```
+
+### <b> New Deaths per Day (Absolute Change) </b>
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$New_LTC.Resident.Deaths, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#AADAFF')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$New_LTC.HCW.Deaths, name = 'Health Care Workers', marker = list(color = '#FF5251')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "New Deaths"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+```
+
+### <b> New Deaths per Day (Relative Change) </b>
+```{r}
+fig <- plot_ly(x = ~ltc_cases$Reported.Date, y = ~ltc_cases$New_LTC.Resident.Pct, type = 'bar', 
+               name = 'Residents', 
+               marker = list(color = '#AADAFF')) 
+
+fig <- fig %>% add_trace(y = ~ltc_cases$New_LTC.HCW.Pct, name = 'Health Care Workers', marker = list(color = '#FF5251')) 
+
+
+fig <- fig %>% layout(title = "",
+                      xaxis = list(title = "Time"),
+                      yaxis = list (title = "New Cases (%)"), 
+                      barmode = 'stack',
+                      hovermode = "x unified")
+fig
+```
+
+ABOUT THE DATASET
+=====================================  
+
+### <b> ABOUT THE DATASET </b>
+
+Dataset used was provided by the [Goverment of Ontario, Canada](https://www.ontario.ca/) through their open source data catalogue and is updated daily. 
+
+
+This dataset is free to use and can be obtained [here](https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario). Many thanks to the Government of Ontario for open sourcing this pandemic dataset. Without open sourced datasets, dashboards like this would not be  possible. 
+
+Below is a dataset print out in case anyone is interested in the structure 
+
+Please note some of the following fields in this dataset were intially created but after review were retired and as such no longer updated. These 'retired' fields are as follows: 
+
+* **Confirmed Negative**	-	Patients tested negative based on testing performed at both Public Health Ontario (PHO) Laboratory and National Microbiology Lab (NML).
+
+* **Presumptive Negative** - Patients tested negative at Public Health Ontario (PHO) Laboratory, but not yet tested by National Microbiology Lab (NML).
+
+
+* **Presumptive Positive** - Patients tested positive at Public Health Ontario (PHO)  Laboratory, but not yet tested by National Microbiology Lab (NML).
+
+```{r}
+library(DT)
+
+datatable(caseStatusOntario)
+```
+
+This dashboard was made using open sourced technologies
