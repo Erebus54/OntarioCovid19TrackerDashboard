@@ -23,8 +23,8 @@ caseStatusOntario$Reported.Date <- as.Date(caseStatusOntario$Reported.Date)
 #a new csv file 
 
 
-#create .csv for each date of dataset
-dirPath <- "C:/Users/patri/Documents/covid19/Ontario/LiveShinyDashboard/ShinyAppProj/Datasets/"
+#create a folder for the .csv file for each date of dataset
+dirPath <- "../../Datasets/"
 
 
 newfolder <- Sys.Date()
