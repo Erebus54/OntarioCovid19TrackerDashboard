@@ -9,3 +9,4 @@ Dataset used was provided by the [Goverment of Ontario](https://www.ontario.ca/)
 
 This dataset is free to use and can be obtained here. Many thanks to the Government of Ontario for open sourcing this [COVID-19 dataset](https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario). Without open sourced datasets, dashboards like this would not be possible.
 
+![some image](https://github.com/Erebus54/OntarioCovid19TrackerDashboard/blob/master/images/COVID%2019%20ON%20Dashboard%20Page%201.PNG)
