@@ -8,3 +8,5 @@ A tracker app I created to pull the most recent COVID-19 open data numbers from 
 Dataset used was provided by the [Goverment of Ontario](https://www.ontario.ca/) through their open source data catalogue and is updated daily.
 
 This dataset is free to use and can be obtained here. Many thanks to the Government of Ontario for open sourcing this [COVID-19 dataset](https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario). Without open sourced datasets, dashboards like this would not be possible.
+
+![page1](C:/Users/patri/Documents/ithub portfolio/COVID 19 ON Dashboard Page 1.PNG)
