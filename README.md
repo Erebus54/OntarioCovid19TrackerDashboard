@@ -1,7 +1,7 @@
 # Ontario Covid19 Tracker Dashboard
 A tracker app I created to pull the most recent COVID-19 open data numbers from Ontario Public Health, manipulate, clean, transform and then visualize the data in neat dashboard with fully interactive graphics 
 
-### Full Dashboard can be accessed [here](https://rpubs.com/PatrickSch/640919)
+### Full Dashboard can be accessed [here](https://patrickschnurbusch.shinyapps.io/ON_Dashboard/)
 *Note: Last updated - August 11th, 2020* 
 
 
