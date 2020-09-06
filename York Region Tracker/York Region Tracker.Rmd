@@ -1,0 +1,698 @@
+---
+title: "York Region Tracker"
+author: Patrick Reza Schnurbusch 
+date: '`r paste("Last Updated: ", format(Sys.time(), "%Y-%m-%d"))`'
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: ["twitter", "facebook", "linkedin"]
+    theme: cosmo
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(rsconnect)
+
+library(dplyr)
+library(tidyverse)
+
+library(lubridate)
+library(zoo)
+library(data.table)
+
+library(plotly)
+
+#setwd("C:/Users/patri/Documents/covid19/York Region Tracker/")
+
+
+casestatus <- read.csv("./datasets/casestatus.csv", encoding = "UTF-8")
+
+casestatus$Reporting_PHU <- trimws(casestatus$Reporting_PHU)
+casestatus$Case_AcquisitionInfo <- trimws(casestatus$Case_AcquisitionInfo)
+
+#converting dates into proper formats 
+casestatus$Accurate_Episode_Date <- as.Date(casestatus$Accurate_Episode_Date, format = "%Y-%m-%d")
+casestatus$Case_Reported_Date <- as.Date(casestatus$Case_Reported_Date, format = "%Y-%m-%d")
+casestatus$Test_Reported_Date <- as.Date(casestatus$Test_Reported_Date, format = "%Y-%m-%d")
+
+
+target <- "York Region Public Health Services"
+
+TargetPHU <- casestatus %>% 
+  dplyr::filter(Reporting_PHU == target)
+```
+
+Home
+=====================================
+
+Row
+-----------------------------------------------------------------------
+### Total Cumulative Cases 
+```{r}
+
+#use this to change icons https://ionicons.com/v2/cheatsheet.html
+cCases <- paste(format(round(as.numeric(nrow(TargetPHU)), 0), nsmall=0, big.mark=",")  # 1,000.6
+)
+valueBox(cCases, icon = "ion-android-person-add")
+```
+
+
+### Rate per 100K Population 
+```{r}
+
+# src: https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/details/page.cfm?Lang=E&Geo1=CD&Code1=3519&Geo2=PR&Code2=35&SearchText=York&SearchType=Begins&SearchPR=01&B1=All&GeoLevel=PR&GeoCode=3519&TABID=1&type=0
+
+POP <- 1109909
+existingCases <- nrow(TargetPHU)
+prevalence <- existingCases/POP
+prevalencerate <- as.integer(prevalence*100000)
+
+valueBox(prevalencerate, icon = "ion-stats-bars")
+```
+
+
+### Close Contact Related Cases
+
+```{r}
+closecontactValue <- TargetPHU %>% 
+  dplyr::filter(Case_AcquisitionInfo == "CC") 
+
+valueBox(format(round(as.numeric(nrow(closecontactValue)), 0), nsmall=0, big.mark=","), icon = "ion-ios-people")
+```
+
+
+### Outbreak Related Cases
+```{r}
+obValue <- TargetPHU %>% 
+  dplyr::filter(Case_AcquisitionInfo == "OB") 
+
+valueBox(format(round(as.numeric(nrow(obValue)), 0), nsmall=0, big.mark=","), icon = "ion-alert-circled")
+```
+
+### Travel Related Cases
+```{r}
+travelCases <- TargetPHU %>% 
+  dplyr::filter(Case_AcquisitionInfo == "Travel") 
+
+valueBox(nrow(travelCases), icon = "ion-plane")
+```
+
+### Population Infected 
+```{r}
+valueBox(paste(round(as.integer(nrow(TargetPHU))/POP*100,2), "%"), icon = "ion-ios-calculator")
+```
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+```{r}
+dailyPHU <- data.frame(TargetPHU %>% 
+  dplyr::arrange(Case_Reported_Date) %>% 
+  dplyr::group_by(Case_Reported_Date) %>% 
+  dplyr::count(name = "Cases") 
+)
+
+dailyPHU <- dailyPHU %>% 
+  dplyr::mutate(d_diff = as.numeric(Case_Reported_Date - lag(Case_Reported_Date)),
+                csum = cumsum(Cases),
+                diff_growth = Cases - lag(Cases), 
+                growth_rate_pct = round((diff_growth/d_diff)/Cases * 100, 2)
+  )
+```
+
+
+### <b> Daily Cases </b> 
+```{r}
+plot_ly(data = dailyPHU, 
+        x = ~Case_Reported_Date, 
+        y= ~Cases, 
+        type = 'bar', name = 'Confirmed Positive',
+        marker = list(color = '#2858a6')) %>% 
+
+layout(title = "",
+       yaxis = list(title = 'New Cases'),
+       xaxis = list(title = 'Case Reported Date'),
+       hovermode = "x unified") %>% 
+  
+  layout(paper_bgcolor='transparent')
+```
+
+
+### <b> The Curve - Linear Scale </b>
+
+```{r}
+fig <- plot_ly(x = ~dailyPHU$Case_Reported_Date, y = ~dailyPHU$csum, type = 'scatter', mode = 'none', name = 'Total Cases', fill = 'tozeroy',
+               fillcolor = '#2858a6')
+
+fig <- fig %>% layout(xaxis = list(title = ''),
+                      yaxis = list(title = 'Cumulative Case'), 
+                      hovermode = "x unified")
+fig <- fig %>% 
+  layout(xaxis = list(rangeselector = list(
+    buttons = list(
+      
+      list(
+        count = 1,
+        label = "1 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 3,
+        label = "3 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 6,
+        label = "6 mo",
+        step = "month",
+        stepmode = "backward"),
+      
+      list(
+        count = 1,
+        label = "1 yr",
+        step = "year",
+        stepmode = "backward"),
+      
+      list(
+        count = 1,
+        label = "YTD",
+        step = "year",
+        stepmode = "todate"),
+      list(step = "all")))
+    #,rangeslider = list(type = "date")
+    ))
+fig
+```
+
+### <b> The Curve - Logarithmic Scale </b>
+
+```{r}
+fig <- fig %>% layout(yaxis = list(type = "log"))
+fig <- fig %>% layout(xaxis = list(title = ""),
+                      yaxis = list (title = "Cumulative Case Counts (Log)"))
+fig
+```
+
+
+
+
+### <b> Doubling Times (Days) </b>
+```{r}
+
+dailyPHU$dt <- as.integer((difftime(dailyPHU$Case_Reported_Date, min(dailyPHU$Case_Reported_Date), units = "days")*log(2))/(log(dailyPHU$csum/1))) 
+
+plot_ly(dailyPHU, 
+        x = ~Case_Reported_Date, 
+        y = ~dt, 
+        name = "dt",
+        type = 'scatter', 
+        fill ='tozeroy', 
+        mode = 'lines', 
+        fillcolor = "#2858A6", 
+        line = list(width = 0.1)) %>% 
+  
+  layout(title = "",
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Doubling Time"), 
+         hovermode = "x unified")
+```
+
+
+### <b> Rolling Averages </b>
+
+```{r}
+rolling.avg <- dailyPHU %>% 
+  dplyr::select(Case_Reported_Date, Cases) %>% 
+  dplyr::mutate(cp.7 = round(zoo::rollmean(Cases, k = 7, fill = NA),0),
+                cp.14 = round(zoo::rollmean(Cases, k = 14, fill = NA),0), 
+                cp.28 = round(zoo::rollmean(Cases, k = 28, fill = NA),0), 
+                cp.56 = round(zoo::rollmean(Cases, k = 56, fill = NA),0)
+)
+
+plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Average",
+        type = 'scatter', mode = 'lines', fill = 'tozeroy', line = list(width = 0.1)) %>% 
+  
+  add_trace(y = ~cp.14, name = "14 Day Average") %>% 
+  add_trace(y = ~cp.28, name = "28 Day Average ") %>% 
+  add_trace(y = ~cp.56, name = "56 Day Average") %>% 
+  
+  layout(title = "",
+         xaxis = list(title = "Date"), 
+         yaxis = list(title = "New Cases"), 
+         hovermode = "x unified")
+```
+
+### <b> Rolling Median </b>
+
+```{r}
+rolling.avg <- dailyPHU %>% 
+  dplyr::select(Case_Reported_Date, Cases) %>% 
+  dplyr::mutate(cp.7 = round(zoo::rollmedian(Cases, k = 7, fill = NA),0),
+                cp.14 = round(zoo::rollmedian(Cases, k = 14, fill = NA),0), 
+                cp.28 = round(zoo::rollmedian(Cases, k = 28, fill = NA),0), 
+                cp.56 = round(zoo::rollmedian(Cases, k = 56, fill = NA),0)
+)
+
+plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Median",
+        type = 'scatter', mode = 'lines', fill = 'tozeroy', line = list(width = 0.1)) %>% 
+  
+  add_trace(y = ~cp.14, name = "14 Day Median") %>% 
+  add_trace(y = ~cp.28, name = "28 Day Median ") %>% 
+  add_trace(y = ~cp.56, name = "56 Day Median") %>% 
+  
+  layout(title = "",
+         xaxis = list(title = "Date"), 
+         yaxis = list(title = "New Cases"), 
+         hovermode = "x unified")
+```
+
+Outcomes 
+=====================================
+
+```{r}
+outcomes <- TargetPHU %>% 
+  dplyr::select(Row_ID,Case_Reported_Date, Outcome1) %>% 
+  group_by(Case_Reported_Date, Outcome1) %>% 
+  summarise(count = n()) %>% 
+  spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame()
+
+outcomes <- outcomes %>% 
+  dplyr::rename(Unresolved = 3)
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+### Total Deaths 
+```{r}
+valueBox(format(round(as.numeric(sum(outcomes$Fatal)), 0), nsmall=0, big.mark=","), icon = "ion-android-person-add")
+```
+
+
+### Total Resolved 
+
+```{r}
+valueBox(format(round(as.numeric(sum(outcomes$Resolved)), 0), nsmall=0, big.mark=","), icon = "ion-android-person-add")
+```
+
+### Current Active Cases 
+
+```{r}
+valueBox(format(round(as.numeric(sum(outcomes$Unresolved)), 0), nsmall=0, big.mark=","), icon = "ion-android-person-add")
+```
+
+
+### Death Rate per 100K Population 
+```{r}
+prevalence <- sum(outcomes$Fatal/POP)
+prevalencerate <- as.integer(prevalence*100000)
+
+valueBox(prevalencerate, icon = "ion-stats-bars")
+```
+
+### Current Recovery Rate 
+
+```{r}
+rr <- paste(round(100-(sum(outcomes$Fatal)/sum(outcomes$Resolved, outcomes$Unresolved, outcomes$Fatal) * 100),2), "%")
+valueBox(rr, icon = "ion-ios-calculator")
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+### <b> Outcome Breakdown </b> 
+```{r}
+outcomeBreakdown <- TargetPHU %>% 
+  dplyr::group_by(Outcome1) %>% 
+  dplyr::summarise(n = n()) %>% 
+  data.frame()
+
+colors <- c('#FF5959', "#FFC56C", "#6EC5E9")
+
+fig <- plot_ly(outcomeBreakdown, labels = ~Outcome1, values = ~n, type = 'pie',
+        textposition = 'inside',
+        textinfo = 'label+percent',
+        insidetextfont = list(color = '#FFFFFF'),
+        hoverinfo = 'text',
+        text = ~paste(n, ' cases'),
+        
+        marker = list(colors = colors,
+                      line = list(color = '#FFFFFF', width = 1)),
+        #The 'pull' attribute can also be used to create space between the sectors
+        showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+
+### <b> Daily Outcomes </b> 
+```{r}
+#Cases by Outcome 
+fig <- plot_ly(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Unresolved, type = 'bar', name = 'Active', 
+               marker = list(color = '#FFC56C'))
+
+fig <- fig %>% add_trace(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Resolved, name = 'Resolved', 
+                         marker = list(color = '#6EC5E9'))
+
+fig <- fig %>% add_trace(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Fatal, name = 'Deaths', 
+                         marker = list(color ='#FF5959'))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Cumulative Case Counts'), 
+                      hovermode = "x unified",
+                      barmode = 'stack')
+
+fig
+```
+
+### <b> Absolute Change </b>
+```{r}
+outcomes_changes <- outcomes %>% 
+  dplyr::mutate(d_diff = as.numeric(Case_Reported_Date - lag(Case_Reported_Date)),
+                total_deaths = cumsum(Fatal), 
+                total_unresolved = cumsum(Unresolved), 
+                total_resolved = cumsum(Resolved),
+                
+                new_deaths = Fatal - lag(Fatal), 
+                new_resolved = Resolved - lag(Resolved), 
+                
+                new_deathsPct = round((Fatal / lag(Fatal) - 1)* 100,2),
+                new_resolvedPct = round((Resolved / lag(Resolved) - 1)* 100,2))
+
+
+
+
+fig <- plot_ly(data = outcomes_changes, x = ~Case_Reported_Date, y = ~new_deaths, 
+               type = 'scatter',
+               mode = "lines+markers", 
+               name = "New Deaths", 
+               marker = list(color = "#FF5959"), 
+               line = list(color = "#FF5959")) %>% 
+  
+  add_trace(y = ~new_resolved, 
+            name = "New Resolved", 
+            marker = list(color = "#6EC5E9"), 
+            line = list(color = "#6EC5E9"))
+
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Absolute Change in Cases'), 
+                      hovermode = "x unified",
+                      barmode = 'stack')
+
+fig
+```
+
+### <b> Cumulative </b> 
+
+```{r}
+fig <- plot_ly(x = ~outcomes_changes$Case_Reported_Date, y = ~outcomes_changes$total_resolved, type = 'bar', name = 'Resolved', 
+               marker = list(color = '#6EC5E9'))
+
+fig <- fig %>% add_trace(x = ~outcomes_changes$Case_Reported_Date, y = ~outcomes_changes$total_deaths, name = 'Deaths', 
+                         marker = list(color ='#FF5959'))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Cumulative Case Counts'), 
+                      hovermode = "x unified",
+                      barmode = 'stack')
+
+fig
+```
+
+
+
+
+
+Case Acquisition
+=====================================
+
+```{r}
+acqBreakdown <- TargetPHU %>% 
+  dplyr::group_by(Case_AcquisitionInfo) %>% 
+  dplyr::summarise(n = n()) %>% 
+  data.frame()
+
+acqBreakdown$Case_AcquisitionInfo <- trimws(acqBreakdown$Case_AcquisitionInfo)
+
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "OB", "Outbreak Related", acqBreakdown$Case_AcquisitionInfo)
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "CC", "Close Contact", acqBreakdown$Case_AcquisitionInfo)
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "Travel", "Travel", acqBreakdown$Case_AcquisitionInfo)
+
+
+acqBreakdown$colors <- c("#E01E5A", "#4285F4", "#767676", "#0F9D58", "#F4B400", "#0F9D58")
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+### Travel Related Cases 
+```{r}
+valueBox(paste(round(sum(TargetPHU$Case_AcquisitionInfo == "Travel")/nrow(TargetPHU)*100, 1), "%"), icon = "ion-plane")
+```
+
+### Close Contact Cases 
+```{r}
+valueBox(paste(round(sum(TargetPHU$Case_AcquisitionInfo == "CC")/nrow(TargetPHU)*100, 1), "%"), icon = "ion-ios-people")
+```
+
+### Outbreak Related Cases 
+```{r}
+valueBox(paste(round(sum(TargetPHU$Case_AcquisitionInfo == "OB")/nrow(TargetPHU)*100, 1), "%"), icon = "ion-alert-circled")
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### <b> Breakdown </b> 
+```{r}
+fig <- plot_ly(acqBreakdown, labels = ~Case_AcquisitionInfo, values = ~n, type = 'pie',
+        textposition = 'inside',
+        textinfo = 'label+percent',
+        insidetextfont = list(color = '#FFFFFF'),
+        hoverinfo = 'text',
+        text = ~paste(n, ' cases'),
+        
+        marker = list(colors = ~colors,
+                      line = list(color = '#FFFFFF', width = 1)),
+        #The 'pull' attribute can also be used to create space between the sectors
+        showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+``` 
+
+### <b> Case Acquisitions over time </b> 
+
+```{r}
+acq_daily <- TargetPHU %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Epi-link") %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Info-Missing") %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Info-Unk") %>% 
+  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  summarise(count = n()) %>% 
+  spread(Case_AcquisitionInfo, count, fill = 0) %>% 
+  as.data.frame()
+
+
+acq_daily <- acq_daily %>% 
+  dplyr::mutate(CC_csum = cumsum(CC), 
+                OB_csum = cumsum(OB), 
+                Travel_csum = cumsum(Travel), 
+                
+                #getting rates 
+                TotalCases = as.integer(sum(CC_csum, OB_csum, Travel_csum)), 
+                CC_Pct = round(CC_csum/TotalCases * 100, 1),
+                OB_Pct = round(OB_csum/TotalCases * 100, 1), 
+                Travel_Pct = round(Travel_csum/TotalCases * 100, 1)
+                )
+
+
+
+fig <- plot_ly(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$CC, type = 'bar', name = 'Close Contact', 
+               marker = list(color = '#E01E5A'))
+
+fig <- fig %>% add_trace(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$OB, name = 'Outbreak Related', 
+                         marker = list(color = '#F4B400'))
+
+fig <- fig %>% add_trace(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$Travel, name = 'Travel', 
+                         marker = list(color ='#25D366'))
+
+fig <- fig %>% layout(title = "", 
+                      xaxis = list(title = ''),
+                      yaxis = list(title = 'Daily Cases'), 
+                      hovermode = "x unified",
+                      barmode = 'stack')
+
+fig
+```
+
+
+### <b> Cumulative Acquisitions </b> 
+```{r}
+plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~CC_csum, type = 'scatter', mode = 'none', fill = 'tozeroy', 
+        name = 'Close Contact', 
+        fillcolor = 'rgba(224, 30, 90, 0.7)',
+        opacity = 0.8) %>% 
+  
+  
+  add_trace(x = ~Case_Reported_Date,y = ~OB_csum, name = "Outbreak", fill = 'tozeroy',
+            fillcolor = 'rgba(244, 180, 0, 0.7)',
+            opacity = 0.8) %>% 
+  
+  add_trace(x = ~Case_Reported_Date,y = ~Travel_csum, name = "Travel", fill = 'tozeroy',
+            fillcolor = 'rgba(37, 211, 102, 0.7)',
+            opacity = 0.8) %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases"))
+```
+
+
+Demographics
+=====================================
+
+```{r}
+ages <- TargetPHU %>% 
+  dplyr::group_by(Age_Group) %>% 
+  dplyr::summarise(n = n()) %>% 
+  data.frame()
+
+#breakdown by gender 
+genders <- TargetPHU %>% 
+  dplyr::group_by(Client_Gender) %>% 
+  dplyr::summarise(n = n()) %>% 
+  data.frame() %>% 
+  dplyr::filter(!Client_Gender == "")
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### <b> Age Breakdown </b> 
+```{r}
+ages$Age_Group <- ordered(ages$Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))
+
+
+fig <- plot_ly(ages, labels = ~Age_Group, values = ~n, type = 'pie',
+               textposition = 'inside',
+               textinfo = 'label+percent',
+               insidetextfont = list(color = '#FFFFFF'),
+               hoverinfo = 'text',
+               text = ~paste(n, ' cases'),
+               
+               marker = list(colors = ~colors,
+                             line = list(color = '#FFFFFF', width = 1)),
+               #The 'pull' attribute can also be used to create space between the sectors
+               showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+
+### <b> Daily Cases by Age </b>
+
+```{r}
+daily_ages <- TargetPHU %>% 
+  dplyr::group_by(Case_Reported_Date, Age_Group) %>% 
+  dplyr::count(name = "n") %>% 
+  data.frame()
+
+daily_ages$Age_Group <- ordered(daily_ages$Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))
+
+daily_ages <- daily_ages %>% 
+  dplyr::arrange(Case_Reported_Date, Age_Group)
+
+
+
+plot_ly(daily_ages, 
+        x = ~Case_Reported_Date, 
+        y = ~n, 
+        type = 'bar', 
+        color = ~Age_Group) %>% 
+  
+  layout(barmode = "stack", 
+         hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases"))
+```
+
+### <b> Cumulative Cases by Age Group </b>
+```{r csumbyAge}
+daily_ages <- daily_ages %>% 
+  dplyr::group_by(Age_Group) %>% 
+  dplyr::mutate(csum = cumsum(n))
+
+plot_ly(daily_ages, x = ~Case_Reported_Date, y = ~csum, 
+        type = 'scatter', mode = 'lines', fill = 'tozeroy', 
+        color = ~Age_Group) %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases"))
+```
+
+
+### <b> Gender Breakdown </b>
+```{r}
+colors <- c('purple', "darkblue")
+
+
+fig <- plot_ly(genders, labels = ~Client_Gender, values = ~n, type = 'pie',
+               textposition = 'inside',
+               textinfo = 'label+percent',
+               insidetextfont = list(color = '#FFFFFF'),
+               hoverinfo = 'text',
+               text = ~paste(n, ' cases'),
+               
+               marker = list(colors = ~colors,
+                             line = list(color = '#FFFFFF', width = 1)),
+               #The 'pull' attribute can also be used to create space between the sectors
+               showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+About this Site
+===================================== 
+
+#### <b> Last Update: `r paste(format(Sys.time(), "%Y-%m-%d"))` </b>   
+
+</br>
+
+#### <b> Background </b>
+*"Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less" - Marie Curie*  
+
+#### <b> Code </b>
+Codebase and dataset used to generate this web application are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard).
+
+
+#### <b> Sources </b> 
+
+*Status of COVID-19 cases in Ontario* : [Open Data Ontario](https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario), updated daily, which presents a breakdown by region, case status, & age groups 
+
+#### <b> Author </b> 
+
+Patrick Schnurbusch
