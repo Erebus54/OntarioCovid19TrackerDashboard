@@ -1,0 +1,225 @@
+---
+title: "HotSpotTracker"
+author: Patrick Reza Schnurbusch 
+date: '`r paste("Updated: ", format(Sys.time(), "%Y-%m-%d"))`'
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    theme: paper
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+
+library(geojsonio)
+library(leaflet)
+library(leaflet.extras)
+library(leaflet.providers)
+library(sf)
+
+library(dplyr)
+library(tidyr)
+
+library(lubridate)
+
+#read polygon data 
+loc = "https://opendata.arcgis.com/datasets/d8fba69152e4408dabfe70e85a2688d2_44.geojson"
+PHU_boundaries <- geojsonio::geojson_read(loc, what = "sp")
+
+PHU_boundaries_sf <- sf::st_as_sf(PHU_boundaries)
+```
+
+GIS
+===================================== 
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+```{r}
+#download casestatus data 
+CaseStatus <- read.csv(file = "https://data.ontario.ca/dataset/f4112442-bdc8-45d2-be3c-12efae72fb27/resource/455fd63b-603d-4608-8216-7d8647f43350/download/conposcovidloc.csv")
+```
+
+
+```{r}
+CaseStatus$Case_Reported_Date <- as.Date(CaseStatus$Case_Reported_Date)
+
+PHU_csums <- data.frame(CaseStatus %>% 
+  dplyr::group_by(Reporting_PHU) %>% 
+  dplyr::count(name = "csum") %>% 
+  dplyr::arrange(Reporting_PHU) %>% 
+  dplyr::mutate(Reporting_PHU = trimws(Reporting_PHU, which = "both"))
+)
+
+ #fixing 5 rows that the PHU name is not verbatim as in the shp boundary file 
+PHU_csums$Reporting_PHU <- ifelse(PHU_csums$Reporting_PHU == "Huron Perth District Health Unit", "Huron Perth Health Unit", 
+                               ifelse(PHU_csums$Reporting_PHU == "Kingston, Frontenac and Lennox & Addington Public Health", "Kingston, Frontenac and Lennox and Addington Health Unit",
+                                      ifelse(PHU_csums$Reporting_PHU == "Sudbury & District Health Unit", "Sudbury and District Health Unit", 
+                                             ifelse(PHU_csums$Reporting_PHU == "Wellington-Dufferin-Guelph Public Health", "Wellington-Dufferin-Guelph Health Unit", 
+                                                    ifelse(PHU_csums$Reporting_PHU == "York Region Public Health Services", "York Region Public Health", PHU_csums$Reporting_PHU)
+                                             )
+                                      )
+                               )
+)
+```
+
+
+### <b> Cumulative per PHU </b> 
+```{r}
+csum_map <- merge(PHU_boundaries_sf, PHU_csums, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+
+pal <- colorNumeric("RdBu", domain = csum_map$csum, reverse = T)
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>%g Total Cases",
+  csum_map$PHU_NAME_ENG, csum_map$csum
+) %>% lapply(htmltools::HTML)
+
+
+leaflet() %>% 
+  setView(lat = 51.2538, lng = -85.3232, zoom = 5.25) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data  = csum_map,
+              fillColor = ~pal(csum), 
+              weight = 2, 
+              opacity = 1, 
+              color = "white", 
+              dashArray = 3, 
+              fillOpacity = 0.65, 
+              
+              highlightOptions = highlightOptions(
+                weight = 4, 
+                color = "yellow", 
+                fillOpacity = 0.65, 
+                bringToFront = T), 
+              
+              label = labels,
+              
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")
+  ) %>%
+  
+  addMiniMap(tiles = "CartoDB.Positron", position = "topright") %>% 
+  addFullscreenControl() %>% 
+  addResetMapButton() %>% 
+  
+  ## adding locate me button 
+  addEasyButton(easyButton(
+    icon="fa-crosshairs", title="Locate Me",
+    onClick=JS("function(btn, map){ map.locate({setView: true});}"))) %>% 
+  
+  addLegend("bottomright", pal = pal, values = csum_map$csum, 
+            title = "Current Cumulative Cases", 
+            opacity = 0.5)
+```
+
+### <b> Today's Cases </b> 
+
+```{r}
+#todays_cases 
+
+#remove na 
+CaseStatus <- CaseStatus[!(is.na(CaseStatus$Case_Reported_Date)),]
+
+todays_cases <- data.frame(CaseStatus %>% 
+                             #remove rows with an NA in 
+                             dplyr::filter(Case_Reported_Date == max(Case_Reported_Date)) %>% 
+                             dplyr::group_by(Reporting_PHU, Case_Reported_Date) %>% 
+                             dplyr::count(name = "todays_cnt") %>% 
+                             dplyr::arrange(Reporting_PHU) %>% 
+                             dplyr::mutate(Reporting_PHU = trimws(Reporting_PHU, which = "both"))
+                           )
+
+#fixing 5 rows that the PHU name is not verbatim as in the shp boundary file 
+todays_cases$Reporting_PHU <- ifelse(todays_cases$Reporting_PHU == "Huron Perth District Health Unit", "Huron Perth Health Unit", 
+                                  ifelse(todays_cases$Reporting_PHU == "Kingston, Frontenac and Lennox & Addington Public Health", "Kingston, Frontenac and Lennox and Addington Health Unit",
+                                         ifelse(todays_cases$Reporting_PHU == "Sudbury & District Health Unit", "Sudbury and District Health Unit", 
+                                                ifelse(todays_cases$Reporting_PHU == "Wellington-Dufferin-Guelph Public Health", "Wellington-Dufferin-Guelph Health Unit", 
+                                                       ifelse(todays_cases$Reporting_PHU == "York Region Public Health Services", "York Region Public Health", todays_cases$Reporting_PHU)
+                                                )
+                                         )
+                                  )
+)
+
+
+
+
+todays_case_sf <- PHU_boundaries_sf %>% 
+  dplyr::filter(PHU_boundaries_sf$PHU_NAME_ENG %in% todays_cases$Reporting_PHU)
+
+
+todays_case_sf <- merge(todays_case_sf, todays_cases, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+pal <- colorNumeric("RdBu", domain = todays_case_sf$todays_cnt, reverse = T)
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>%g Cases(s) Today",
+  todays_case_sf$PHU_NAME_ENG, todays_case_sf$todays_cnt
+) %>% lapply(htmltools::HTML)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data  = todays_case_sf,
+              fillColor = ~pal(todays_cnt), 
+              weight = 2, 
+              opacity = 1, 
+              color = "white", 
+              dashArray = 3, 
+              fillOpacity = 0.25, 
+              
+              highlightOptions = highlightOptions(
+                weight = 4, 
+                color = "yellow", 
+                fillOpacity = 0.5, 
+                bringToFront = T), 
+              
+              label = labels,
+
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")
+  ) %>%
+  
+  addMiniMap(tiles = "CartoDB.Positron", position = "topright") %>% 
+  addFullscreenControl() %>% 
+  addResetMapButton() %>% 
+  
+  ## adding locate me button 
+  addEasyButton(easyButton(
+    icon="fa-crosshairs", title="Locate Me",
+    onClick=JS("function(btn, map){ map.locate({setView: true});}"))) %>% 
+  
+  addLegend("bottomright", pal = pal, values = todays_case_sf$todays_cnt, 
+            title = "Today's Cases", 
+            opacity = 0.5)
+```
+
+About this Site
+===================================== 
+
+#### Last Update  
+
+04 September 2020 
+
+#### Background
+*"Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less" - Marie Curie*  
+
+
+#### Code
+Code and input data used to generate this Shiny mapping tool are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard/tree/master/HotSpotTracker).
+
+#### Sources 
+
+**Status of COVID-19 cases in Ontario** : [Open Data Ontario](https://data.ontario.ca/dataset/status-of-covid-19-cases-in-ontario), updated daily, which presents a breakdown by region, case status, age range of cases 
+
+
+#### Author 
+Patrick Schnurbusch 
+
+#### <b> Contact </b> 
+
+patrick.schnurbusch@gmail.com
