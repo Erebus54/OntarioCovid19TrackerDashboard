@@ -1,7 +1,5 @@
 ---
 title: "York Region Tracker"
-author: Patrick Reza Schnurbusch 
-date: '`r paste("Last Updated: ", format(Sys.time(), "%Y-%m-%d"))`'
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
@@ -9,13 +7,34 @@ output:
     theme: cosmo
 runtime: shiny
 ---
-<style>         
+<style>
+.navbar {
+  background-color:black;
+  border-color:white;
+}
 
-.navbar {background-color:black;
-         border-color:white;}
 .navbar-brand {color:white!important;}
 
-</style>    
+.navbar-inverse .navbar-nav > li > a:hover,
+.navbar-inverse .navbar-nav > li > a:focus {
+    background-color: #04d9ff;
+    color: white;
+}
+.navbar-inverse .navbar-nav > .active > a,
+.navbar-inverse .navbar-nav > .active > a:hover,
+.navbar-inverse .navbar-nav > .active > a:focus {
+  color: white;
+  background-color: #04d9ff;
+}
+.navbar-inverse .navbar-toggle:hover,
+.navbar-inverse .navbar-toggle:focus {
+  background-color: #04d9ff;
+}
+.navbar-inverse .navbar-collapse,
+.navbar-inverse .navbar-form {
+  border-color: #04d9ff;
+}
+</style>
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
@@ -30,10 +49,9 @@ library(data.table)
 
 library(plotly)
 
-#setwd("C:/Users/patri/Documents/covid19/York Region Tracker/")
+casestatus <- fread("./datasets/casestatus.csv", encoding = 'UTF-8',data.table = F)
 
 
-casestatus <- read.csv("./datasets/casestatus.csv", encoding = "UTF-8")
 
 casestatus$Reporting_PHU <- trimws(casestatus$Reporting_PHU)
 casestatus$Case_AcquisitionInfo <- trimws(casestatus$Case_AcquisitionInfo)
@@ -43,12 +61,48 @@ casestatus$Accurate_Episode_Date <- as.Date(casestatus$Accurate_Episode_Date, fo
 casestatus$Case_Reported_Date <- as.Date(casestatus$Case_Reported_Date, format = "%Y-%m-%d")
 casestatus$Test_Reported_Date <- as.Date(casestatus$Test_Reported_Date, format = "%Y-%m-%d")
 
-
-target <- "York Region Public Health Services"
-
-TargetPHU <- casestatus %>% 
-  dplyr::filter(Reporting_PHU == target)
+TargetPHU <- casestatus 
 ```
+
+```{r}
+##adding a range selector variable to supply list of options for our time series graphs into buttons_time
+buttons_time <- list(
+  list(step = "all"), 
+  
+  list(
+    count = 6,
+    label = "6 mo",
+    step = "month",
+    stepmode = "backward"),
+  
+  list(
+    count = 3, 
+    label = "3 mo", 
+    step = "month", 
+    stepmode = "backward"), 
+  
+  list(
+    count = 2, 
+    label = "2 mo", 
+    step = "month", 
+    stepmode = "backward"), 
+  
+  list(
+    count = 1,
+    label = "1 mo",
+    step = "month",
+    stepmode = "backward"),
+  
+  list(
+    count = 14,
+    label = "2W",
+    step = "day",
+    stepmode = "backward")
+
+)
+```
+
+
 
 Home
 =====================================
@@ -62,6 +116,15 @@ Row
 cCases <- paste(format(round(as.numeric(nrow(TargetPHU)), 0), nsmall=0, big.mark=",")  # 1,000.6
 )
 valueBox(cCases, icon = "ion-android-person-add")
+```
+
+### New Cases 
+```{r}
+todays_cases <- TargetPHU %>% 
+  dplyr::filter(Case_Reported_Date == max(Case_Reported_Date)) %>% 
+  dplyr::count()
+
+valueBox(todays_cases, icon = "ion-stats-bars")
 ```
 
 
@@ -140,10 +203,14 @@ plot_ly(data = dailyPHU,
 
 layout(title = "",
        yaxis = list(title = 'New Cases'),
-       xaxis = list(title = 'Case Reported Date'),
+       xaxis = list(title = ' '),
        hovermode = "x unified") %>% 
   
-  layout(paper_bgcolor='transparent')
+  layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+  
 ```
 
 
@@ -157,41 +224,10 @@ fig <- fig %>% layout(xaxis = list(title = ''),
                       yaxis = list(title = 'Cumulative Case'), 
                       hovermode = "x unified")
 fig <- fig %>% 
-  layout(xaxis = list(rangeselector = list(
-    buttons = list(
-      
-      list(
-        count = 1,
-        label = "1 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 3,
-        label = "3 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 6,
-        label = "6 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 1,
-        label = "1 yr",
-        step = "year",
-        stepmode = "backward"),
-      
-      list(
-        count = 1,
-        label = "YTD",
-        step = "year",
-        stepmode = "todate"),
-      list(step = "all")))
-    #,rangeslider = list(type = "date")
-    ))
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time
+  )))
+  
 fig
 ```
 
@@ -225,7 +261,12 @@ plot_ly(dailyPHU,
   layout(title = "",
          xaxis = list(title = ""), 
          yaxis = list(title = "Doubling Time"), 
-         hovermode = "x unified")
+         hovermode = "x unified") %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time
+  )))
+  
 ```
 
 
@@ -248,9 +289,14 @@ plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Average",
   add_trace(y = ~cp.56, name = "56 Day Average") %>% 
   
   layout(title = "",
-         xaxis = list(title = "Date"), 
+         xaxis = list(title = ""), 
          yaxis = list(title = "New Cases"), 
-         hovermode = "x unified")
+         hovermode = "x unified") %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time
+  )))
+  
 ```
 
 ### <b> Rolling Median </b>
@@ -272,9 +318,14 @@ plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Median",
   add_trace(y = ~cp.56, name = "56 Day Median") %>% 
   
   layout(title = "",
-         xaxis = list(title = "Date"), 
+         xaxis = list(title = " "), 
          yaxis = list(title = "New Cases"), 
-         hovermode = "x unified")
+         hovermode = "x unified") %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time
+  )))
+  
 ```
 
 Outcomes 
@@ -378,7 +429,12 @@ fig <- fig %>% layout(title = "",
                       hovermode = "x unified",
                       barmode = 'stack')
 
-fig
+fig <- fig %>%   layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time
+  )))
+  
+
+fig 
 ```
 
 ### <b> Absolute Change </b>
@@ -415,9 +471,13 @@ fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Absolute Change in Cases'), 
                       hovermode = "x unified",
-                      barmode = 'stack')
+                      barmode = 'stack') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+  
 
-fig
+fig 
 ```
 
 ### <b> Cumulative </b> 
@@ -433,7 +493,10 @@ fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Cumulative Case Counts'), 
                       hovermode = "x unified",
-                      barmode = 'stack')
+                      barmode = 'stack') %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 
 fig
 ```
@@ -544,7 +607,10 @@ fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Daily Cases'), 
                       hovermode = "x unified",
-                      barmode = 'stack')
+                      barmode = 'stack') %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 
 fig
 ```
@@ -552,14 +618,14 @@ fig
 
 ### <b> Cumulative Acquisitions </b> 
 ```{r}
-plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~CC_csum, type = 'scatter', mode = 'none', fill = 'tozeroy', 
-        name = 'Close Contact', 
-        fillcolor = 'rgba(224, 30, 90, 0.7)',
+plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~OB_csum, type = 'scatter', mode = 'none', fill = 'tozeroy', 
+        name = 'Outbreak', 
+        fillcolor = 'rgba(244, 180, 0, 0.7)',
         opacity = 0.8) %>% 
   
   
-  add_trace(x = ~Case_Reported_Date,y = ~OB_csum, name = "Outbreak", fill = 'tozeroy',
-            fillcolor = 'rgba(244, 180, 0, 0.7)',
+  add_trace(x = ~Case_Reported_Date,y = ~CC_csum, name = "Close Contact", fill = 'tozeroy',
+            fillcolor = 'rgba(224, 30, 90, 0.7)',
             opacity = 0.8) %>% 
   
   add_trace(x = ~Case_Reported_Date,y = ~Travel_csum, name = "Travel", fill = 'tozeroy',
@@ -568,7 +634,10 @@ plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~CC_csum, type = 'scatter', mode
   
   layout(hovermode = 'x-unified', 
          xaxis = list(title = ""), 
-         yaxis = list(title = "Cases"))
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 ```
 
 
@@ -592,7 +661,7 @@ genders <- TargetPHU %>%
 Row {.tabset .tabset-fade}
 -------------------------------------
 
-### <b> Age Breakdown </b> 
+### <b> Age Breakdown Pie </b> 
 ```{r}
 ages$Age_Group <- ordered(ages$Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))
 
@@ -615,6 +684,29 @@ fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showtickl
 fig
 ```
 
+### <b> Age Breakdown Treemap </b> 
+```{r}
+fig <- plot_ly(data = ages, 
+        labels = ~Age_Group, 
+        parents = NA, 
+        values = ~n, 
+        type = 'treemap', 
+        domain = list(column=0), 
+        marker = list(colorscale = 'Rainbow', reversescale = T),
+        textposition = 'inside',
+        textinfo = 'label',
+        insidetextfont = list(color = '#FFFFFF', size = 20),
+        hoverinfo = 'text',
+        text = ~paste(Age_Group,':', n, 'Total Cases')) 
+
+fig <- fig %>% 
+  
+  layout(plot_bgcolor = 'black', 
+         paper_bgcolor = 'black', 
+         grid = list(columns = 1, rows = 1))
+
+fig
+```
 
 ### <b> Daily Cases by Age </b>
 
@@ -635,12 +727,16 @@ plot_ly(daily_ages,
         x = ~Case_Reported_Date, 
         y = ~n, 
         type = 'bar', 
-        color = ~Age_Group) %>% 
+        color = ~Age_Group, 
+        colors = "Paired") %>% 
   
   layout(barmode = "stack", 
          hovermode = 'x-unified', 
          xaxis = list(title = ""), 
-         yaxis = list(title = "Cases"))
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 ```
 
 ### <b> Cumulative Cases by Age Group </b>
@@ -651,17 +747,21 @@ daily_ages <- daily_ages %>%
 
 plot_ly(daily_ages, x = ~Case_Reported_Date, y = ~csum, 
         type = 'scatter', mode = 'lines', fill = 'tozeroy', 
-        color = ~Age_Group) %>% 
+        color = ~Age_Group, 
+        colors = "Paired") %>% 
   
   layout(hovermode = 'x-unified', 
          xaxis = list(title = ""), 
-         yaxis = list(title = "Cases"))
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 ```
 
 
 ### <b> Gender Breakdown </b>
 ```{r}
-colors <- c('purple', "darkblue")
+colors <- c('#c37ef0', "#54c3ff")
 
 
 fig <- plot_ly(genders, labels = ~Client_Gender, values = ~n, type = 'pie',
@@ -682,6 +782,56 @@ fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showtickl
 fig
 ```
 
+### <b> Daily Cases by Gender </b>
+```{r}
+#daily cases by gender 
+daily_genders <- TargetPHU %>% 
+  dplyr::filter(Client_Gender %in% c("MALE", "FEMALE")) %>% 
+  dplyr::group_by(Case_Reported_Date, Client_Gender) %>% 
+  dplyr::count(name = "n") %>% 
+  dplyr::arrange(Case_Reported_Date, Client_Gender) %>% 
+  dplyr::mutate(Client_Gender = trimws(Client_Gender)) %>% 
+  data.frame()
+  
+
+daily_genders$HEX <- ifelse(daily_genders$Client_Gender == "MALE", "#54c3ff", "#c37ef0")
+
+plot_ly(daily_genders, 
+        x = ~Case_Reported_Date, 
+        y = ~n, 
+        type = 'bar', 
+        color = ~Client_Gender, 
+        colors = ~HEX) %>% 
+  
+  layout(barmode = "stack", 
+         hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+```
+
+### <b> Cumulative Cases by Gender </b> 
+```{r}
+daily_genders <- daily_genders %>% 
+  dplyr::group_by(Client_Gender) %>% 
+  dplyr::mutate(csum = cumsum(n))
+
+plot_ly(daily_genders, x = ~Case_Reported_Date, y = ~csum, 
+        type = 'scatter', mode = 'lines', fill = 'tozeroy', 
+        color = ~Client_Gender, 
+        colors = ~HEX) %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+```
+
+
 About this Site
 ===================================== 
 
@@ -693,7 +843,7 @@ About this Site
 *"Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less" - Marie Curie*  
 
 #### <b> Code </b>
-Codebase and dataset used to generate this web application are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard).
+Codebase and dataset used to generate this web application are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard/tree/master/York%20Region%20Tracker).
 
 
 #### <b> Sources </b> 
@@ -703,3 +853,7 @@ Codebase and dataset used to generate this web application are available on [Git
 #### <b> Author </b> 
 
 Patrick Schnurbusch
+
+#### <b> Contact </b> 
+
+patrick.schnurbusch@gmail.com
