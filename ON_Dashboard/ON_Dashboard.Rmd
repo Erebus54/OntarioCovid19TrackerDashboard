@@ -1,18 +1,21 @@
 ---
-title: "Ontario COVID19 Dashboard"
-author: Patrick Reza Schnurbusch 
-date: '`r paste("Last Update: ", format(Sys.time(), "%Y-%m-%d"))`'
+title: "Ontario COVID19"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
-    social: menu
+    social: ["twitter", "facebook", "linkedin"]
     theme: paper
-    source_code: embed
 runtime: shiny
 ---
+<style>         
+
+.navbar {background-color:black;
+         border-color:white;}
+.navbar-brand {color:white!important;}
+
+</style>    
 
 ```{r setup, include=FALSE}
-setwd("C:/Users/patri/Documents/covid19/ON_Dashboard/")
 library(rsconnect)
 
 #viz libs 
@@ -23,15 +26,22 @@ library(RColorBrewer)
 #data manipulation
 library(lubridate)
 library(tidyverse)
+library(tidyr)
+library(dplyr)
 library(data.table)
 
+#setwd("C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/OntarioTracker/")
+
 #global province wide stats 
-ConfirmedPositives <- read.csv("./datasets/confirmedpositives.csv", fileEncoding = "UTF-8")
+ConfirmedPositives <- read.csv("./datasets/confirmedpositives.csv", encoding = "UTF-8")
 #ConfirmedPositives <- data.frame(ConfirmedPositives)
 ConfirmedPositives$Reported.Date <- as.Date(ConfirmedPositives$Reported.Date, format = "%Y-%m-%d")
 
+
+
+
 #individual PHU level case status recrod 
-casestatus <- read.csv("./datasets/casestatus.csv", fileEncoding = "UTF-8")
+casestatus <- read.csv("./datasets/casestatus.csv", encoding = "UTF-8")
 #casestatus <- data.frame(casestatus)
 casestatus$Accurate_Episode_Date <- as.Date(casestatus$Accurate_Episode_Date, format = "%Y-%m-%d")
 casestatus$Case_Reported_Date <- as.Date(casestatus$Case_Reported_Date, format = "%Y-%m-%d")
@@ -140,6 +150,45 @@ regions <- data.frame(regions %>%
 ```
 
 
+```{r}
+##adding a range selector variable to supply list of options for our time series graphs into buttons_time
+buttons_time <- list(
+  list(step = "all"), 
+  
+  list(
+    count = 6,
+    label = "6 mo",
+    step = "month",
+    stepmode = "backward"),
+  
+  list(
+    count = 3, 
+    label = "3 mo", 
+    step = "month", 
+    stepmode = "backward"), 
+  
+  list(
+    count = 2, 
+    label = "2 mo", 
+    step = "month", 
+    stepmode = "backward"), 
+  
+  list(
+    count = 1,
+    label = "1 mo",
+    step = "month",
+    stepmode = "backward"),
+  
+  list(
+    count = 14,
+    label = "2W",
+    step = "day",
+    stepmode = "backward")
+
+)
+```
+
+
 Case Status
 =====================================
 Row {.tabset .tabset-fade}
@@ -156,46 +205,16 @@ fig <- fig %>% add_trace(x = ~ConfirmedPositives$Reported.Date, y = ~ConfirmedPo
 fig <- fig %>% add_trace(x = ~ConfirmedPositives$Reported.Date, y = ~ConfirmedPositives$Deaths, name = 'Deaths', fill = 'tozeroy',
                          fillcolor = '#FF5959')
 
-fig <- fig %>% layout(title = "<b> Daily Cases by Status </b>", 
+fig <- fig %>% layout(title = "", 
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Cumulative Case Counts'), 
-                      hovermode = "x unified")
-fig <- fig %>% 
-  layout(xaxis = list(rangeselector = list(
-    buttons = list(
-      
-      list(
-        count = 1,
-        label = "1 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 3,
-        label = "3 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 6,
-        label = "6 mo",
-        step = "month",
-        stepmode = "backward"),
-      
-      list(
-        count = 1,
-        label = "1 yr",
-        step = "year",
-        stepmode = "backward"),
-      
-      list(
-        count = 1,
-        label = "YTD",
-        step = "year",
-        stepmode = "todate"),
-      list(step = "all")))
-    #,rangeslider = list(type = "date")
-    ))
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
@@ -203,7 +222,7 @@ fig
 
 ```{r}
 fig <- fig %>% layout(yaxis = list(type = "log"))
-fig <- fig %>% layout(title = "Daily Cases by Status",
+fig <- fig %>% layout(title = "",
                       xaxis = list(title = "Daily Cases by Status (Log)"),
                       yaxis = list (title = "Cumulative Case Counts (Log)"))
 fig
@@ -238,7 +257,12 @@ plot_ly(dt,
   layout(title = "Doubling Times",
          xaxis = list(title = ""), 
          yaxis = list(title = "Doubling Time (Days)"), 
-         hovermode = "x unified")
+         hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 
 ```
 
@@ -261,10 +285,15 @@ plot_ly(rolling.avg, x = ~Reported.Date, y = ~cp.7, name = "7 Day Average",
   add_trace(y = ~cp.28, name = "28 Day Average ") %>% 
   add_trace(y = ~cp.56, name = "56 Day Average") %>% 
   
-  layout(title = "<b> Moving Averages </b>",
+  layout(title = "",
          xaxis = list(title = "Date"), 
          yaxis = list(title = "New Cases"), 
-         hovermode = "x unified")
+         hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 ```
 
 ### <b> New Cases (n) </b>
@@ -295,7 +324,12 @@ fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Absolute Change (n)'), 
                       barmode = 'stack',
-                      hovermode = "x unified")
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
 fig
 ```
 
@@ -314,7 +348,13 @@ fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),
                       yaxis = list(title = 'Relative Change (%)'), 
                       barmode = 'stack', 
-                      hovermode = "x unified")
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 
 ```
@@ -331,25 +371,39 @@ fig <- plot_ly(x = ConfirmedPositives$Reported.Date,
                type = 'scatter', mode = 'lines', name = 'Confirmed Positive', 
                fill = 'tozeroy',
         fillcolor = '#2858a6',
-        line = list(width = 0.5))
+        line = list(width = 0.5), 
+        
+        hoverinfo = 'text',
+        text = ~paste('Positives: ', ConfirmedPositives$Confirmed.Positive)
+        )
 
 fig <- fig %>% layout(title = "",
-                      yaxis = list(title = 'Tested Positive'),
-                      xaxis = list(title = 'Reported Date'),
+                      yaxis = list(title = ''),
+                      xaxis = list(title = ''),
                       hovermode = "x unified") %>% 
   
-  layout(paper_bgcolor='transparent')
+  layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
 ### <b> Positives vs Total Tested </b> 
 ```{r}
-fig <- plot_ly(ConfirmedPositives, x = ~Reported.Date, y = ~Confirmed.Positive, type = 'bar', name = 'Confirmed Positives', marker = list(color = 'FF5959'))
+fig <- plot_ly(ConfirmedPositives, x = ~Reported.Date, y = ~Confirmed.Positive, type = 'bar', name = 'Positives', marker = list(color = 'FF5959'))
 fig <- fig %>% add_trace(y = ~Total.tests.completed.in.the.last.day, name = 'Total Tested', marker = list(color = '6EC5E9'))
 fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = 'Date'), 
-                      yaxis = list(title = 'Counts'), barmode = 'stack', 
-                      hovermode = "x unified")
+                      xaxis = list(title = ''), 
+                      yaxis = list(title = ''), barmode = 'stack', 
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
@@ -363,11 +417,20 @@ test.positive.rate <- ConfirmedPositives %>%
 test.positive.rate <- test.positive.rate[complete.cases(test.positive.rate), ]
 
 fig <- plot_ly(test.positive.rate, x = ~Reported.Date, y = ~Test.positive.rate, type = 'bar', name = 'Test Positive Rate', 
-               marker = list(color = '#FF9900'))
+               marker = list(color = '#FF9900'), 
+               hoverinfo = 'text',
+               text = ~paste('Positivity Rate: ', Test.positive.rate, '%'))
+
 fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = 'Date'), 
-                      yaxis = list(title = 'Tested Positive (%)'),
-                      hovermode = "x unified")
+                      xaxis = list(title = ''), 
+                      yaxis = list(title = ''),
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
@@ -403,16 +466,24 @@ hospitalizations <- ConfirmedPositives %>%
 fig <- plot_ly(hospitalizations, x = ~Reported.Date, y = ~Number.of.patients.hospitalized.with.COVID.19, 
                type = 'scatter', 
                mode = 'markers',
-               name = 'Patients Hospitalized', 
+               name = 'Hospitalized Patients', 
                marker = list(color = '#2C82C9', size = 5))
-fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.with.COVID.19, name = 'Intensive Care Patients', 
+
+fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.with.COVID.19, name = 'ICU Patients', 
                          marker = list(color = '#FCB941', size = 5))
-fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19, name = 'ICU Ventilator Patients', 
+
+fig <- fig %>% add_trace(y = ~Number.of.patients.in.ICU.on.a.ventilator.with.COVID.19, name = 'Ventilator Patients', 
                          marker = list(color = '#FC6042', size = 5))
 fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''), 
-                      yaxis = list(title = 'Number of Patients'), barmode = 'stack', 
-                      hovermode = "x unified")
+                      yaxis = list(title = 'Patients'), barmode = 'stack', 
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
@@ -422,22 +493,28 @@ fig
 fig <- plot_ly(data = hospitalizations, x = ~Reported.Date,y = ~New_hospitalized, 
                type = 'scatter',
                mode = 'lines+markers', 
-               name = "Patients Hospitalized", 
+               name = "Hospitalized Patients", 
                marker = list(color = '#2C82C9'),
                line = list(color = '#2C82C9', width = 1)
 ) 
-fig <- fig %>% add_trace(y = ~New_ICU, name = "Intensive Care Patients", mode = 'lines+markers',
+fig <- fig %>% add_trace(y = ~New_ICU, name = "ICU Patients", mode = 'lines+markers',
                          marker = list(color = '#FCB941'),
                          line = list(color = '#FCB941', width = 1)
 )
-fig <- fig %>% add_trace(y = ~New_ventilator, name = "ICU Ventilator Patients", mode = 'lines+markers',
+fig <- fig %>% add_trace(y = ~New_ventilator, name = "Ventilator Patients", mode = 'lines+markers',
                          marker = list(color = '#FC6042'),
                          line = list(color = '#FC6042', width = 1)
 )
 fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''), 
                       yaxis = list(title = 'Change in Patients (n)'), barmode = 'stack', 
-                      hovermode = "x unified")
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
 
@@ -447,24 +524,215 @@ fig
 fig <- plot_ly(data = hospitalizations, x = ~Reported.Date,y = ~New_hospitalized.pct, 
                type = 'scatter',
                mode = 'lines+markers', 
-               name = "Patients Hospitalized", 
+               name = "Hospitalized Patients", 
                marker = list(color = '#2C82C9'), 
                line = list(color = '#2C82C9', width = 1)
                ) 
-fig <- fig %>% add_trace(y = ~New_ICU.pct, name = "Intensive Care Patients", mode = 'lines+markers',
+fig <- fig %>% add_trace(y = ~New_ICU.pct, name = "ICU Patients", mode = 'lines+markers',
                          marker = list(color = '#FCB941'),
                          line = list(color = '#FCB941', width = 1)
                          )
-fig <- fig %>% add_trace(y = ~New_ventilator.pct, name = "ICU Ventilator Patients", mode = 'lines+markers',
+fig <- fig %>% add_trace(y = ~New_ventilator.pct, name = "Ventilator Patients", mode = 'lines+markers',
                          marker = list(color = '#FC6042'),
                          line = list(color = '#FC6042', width = 1)
                          )
 fig <- fig %>% layout(title = "",
                       xaxis = list(title = ''),  
                       yaxis = list(title = 'Change in Patients (%)'), barmode = 'stack', 
-                      hovermode = "x unified")
+                      hovermode = "x unified") %>% 
+  
+    layout(paper_bgcolor='transparent') %>% 
+  
+    layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+
 fig
 ```
+
+Case Acquisition 
+=====================================
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+```{r}
+caseStatus <- read.csv("./datasets/casestatus.csv", encoding = "UTF-8")
+
+caseStatus$Case_Reported_Date <- as.Date(caseStatus$Case_Reported_Date, format = "%Y-%m-%d")
+```
+
+
+### <b> Breakdown </b>
+```{r}
+acqBreakdown <- caseStatus %>% 
+  dplyr::group_by(Case_AcquisitionInfo) %>% 
+  dplyr::summarise(n = n()) %>% 
+  data.frame()
+
+acqBreakdown$Case_AcquisitionInfo <- trimws(acqBreakdown$Case_AcquisitionInfo)
+
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "OB", "Outbreak Related", acqBreakdown$Case_AcquisitionInfo)
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "CC", "Close Contact", acqBreakdown$Case_AcquisitionInfo)
+acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "Travel", "Travel", acqBreakdown$Case_AcquisitionInfo)
+
+
+acqBreakdown$colors <- c("#E01E5A", "#4285F4", "#767676", "#0F9D58", "#F4B400", "#0F9D58")
+
+
+fig <- plot_ly(acqBreakdown, labels = ~Case_AcquisitionInfo, values = ~n, type = 'pie',
+               textposition = 'inside',
+               textinfo = 'label+percent',
+               insidetextfont = list(color = '#FFFFFF'),
+               hoverinfo = 'text',
+               text = ~paste(n, ' Cases'),
+               
+               marker = list(colors = ~colors,
+                             line = list(color = '#FFFFFF', width = 1)),
+               #The 'pull' attribute can also be used to create space between the sectors
+               showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+
+### <b> Acquisitions Over Time </b>
+
+```{r}
+acqInfo <- caseStatus %>% 
+  dplyr::select("Case_Reported_Date", "Case_AcquisitionInfo" ) %>% 
+  dplyr::group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  summarise(n = length(Case_AcquisitionInfo)) %>% 
+  data.frame()
+
+acqInfo <- tidyr::spread(acqInfo, key = Case_AcquisitionInfo, value = n, fill = 0)
+
+plot_ly(acqInfo, x = ~Case_Reported_Date, y = ~CC, type = 'bar', name = "Close Contact", marker = list(color = '#E01E5A')) %>% 
+  add_trace(y = ~OB, name = "Outbreak Related", marker = list(color = "#F4B400")) %>% 
+  add_trace(y = ~Travel, name = "Travel", marker = list(color = "#25D366")) %>% 
+  
+  layout(title = "", 
+         xaxis = list(title = ""),
+         yaxis = list(title = "Cases"),
+         barmode = 'stack', 
+         hovermode = 'x-unified')
+```
+
+### <b> Cumulative Acquisitions </b> 
+
+```{r}
+acq_daily <- caseStatus %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Epi-link") %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Info-Missing") %>% 
+  dplyr::filter(Case_AcquisitionInfo != "No Info-Unk") %>% 
+  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  summarise(count = n()) %>% 
+  spread(Case_AcquisitionInfo, count, fill = 0) %>% 
+  as.data.frame()
+
+
+acq_daily <- acq_daily %>% 
+  dplyr::mutate(CC_csum = cumsum(CC), 
+                OB_csum = cumsum(OB), 
+                Travel_csum = cumsum(Travel), 
+                
+                #getting rates 
+                TotalCases = as.integer(sum(CC_csum, OB_csum, Travel_csum)), 
+                CC_Pct = round(CC_csum/TotalCases * 100, 1),
+                OB_Pct = round(OB_csum/TotalCases * 100, 1), 
+                Travel_Pct = round(Travel_csum/TotalCases * 100, 1)
+  ) 
+
+
+plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~OB_csum, type = 'scatter', mode = 'none', fill = 'tozeroy', 
+        name = 'Outbreak', 
+        fillcolor = 'rgba(244, 180, 0, 0.7)',
+        opacity = 0.8) %>% 
+  
+  
+  add_trace(x = ~Case_Reported_Date,y = ~CC_csum, name = "Close Contact", fill = 'tozeroy',
+            fillcolor = 'rgba(224, 30, 90, 0.7)',
+            opacity = 0.8) %>% 
+  
+  add_trace(x = ~Case_Reported_Date,y = ~Travel_csum, name = "Travel", fill = 'tozeroy',
+            fillcolor = 'rgba(37, 211, 102, 0.7)',
+            opacity = 0.8) %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Cases")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+```
+
+
+Regions
+=====================================
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### <b> Breakdown </b>
+
+```{r}
+reg_Breakdown <- caseStatus %>% 
+  dplyr::group_by(Reporting_PHU) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::arrange(Reporting_PHU) %>%
+  data.frame()
+
+fig <- plot_ly(reg_Breakdown, labels = ~Reporting_PHU, values = ~n, type = 'pie',
+               textposition = 'inside',
+               textinfo = 'label+percent',
+               insidetextfont = list(color = '#FFFFFF'),
+               hoverinfo = 'text',
+               text = ~paste(Reporting_PHU,':', n, 'Total Cases'),
+               
+               marker = list(colors = ~colors,
+                             line = list(color = '#FFFFFF', width = 1)),
+               #The 'pull' attribute can also be used to create space between the sectors
+               showlegend = FALSE)
+
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+### <b> Treemap </b>
+
+```{r}
+fig <- plot_ly(data = reg_Breakdown, 
+        labels = ~Reporting_PHU, 
+        parents = NA, 
+        values = ~n, 
+        type = 'treemap', 
+        domain = list(column=0), 
+        marker = list(colorscale = 'Bluered', reversescale = F),
+        textposition = 'inside',
+        textinfo = 'label',
+        insidetextfont = list(color = '#FFFFFF', size = 20),
+        hoverinfo = 'text',
+        text = ~paste(Reporting_PHU,':', n, 'Total Cases')) 
+
+fig <- fig %>% 
+  
+  layout(plot_bgcolor = 'black', 
+         paper_bgcolor = 'black', 
+         grid = list(columns = 1, rows = 1))
+
+fig
+```
+
+
+Forecast (Beta)
+=====================================
+Row {.tabset .tabset-fade}
+-------------------------------------
+### Simple Moving Averages 
+
 
 
 About this Site
@@ -472,14 +740,14 @@ About this Site
 
 #### Last Update  
 
-04 September 2020 
+`r format(Sys.time(), "%d %B, %Y")`
 
 #### Background
 *"Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less" - Marie Curie*  
 
 
 #### Code
-Code and input data used to generate this Shiny mapping tool are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard/tree/master/ON_Dashboard).
+Code and input data used to generate this web app are available on [Github](https://github.com/Erebus54/OntarioCovid19TrackerDashboard/tree/master/ON_Dashboard).
 
 #### Sources 
 
@@ -490,3 +758,8 @@ Code and input data used to generate this Shiny mapping tool are available on [G
 
 #### Author 
 Patrick Schnurbusch 
+
+#### Contact 
+
+patrick.schnurbusch@gmail.com
+
