@@ -9,6 +9,13 @@ output:
     theme: cosmo
 runtime: shiny
 ---
+<style>         
+
+.navbar {background-color:black;
+         border-color:white;}
+.navbar-brand {color:white!important;}
+
+</style>    
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
