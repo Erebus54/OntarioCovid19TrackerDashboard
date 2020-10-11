@@ -13,20 +13,13 @@ setwd("C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotS
 # loc = "https://opendata.arcgis.com/datasets/d8fba69152e4408dabfe70e85a2688d2_44.geojson"
 # PHU_boundaries <- geojsonio::geojson_read(loc, what = "sp")
 # PHU_boundaries_sf <- sf::st_as_sf(PHU_boundaries)
-# outname <- paste(getwd(), "/spatial_files/OB/PHU_boundaries.geojson", sep = "")
+#outname <- paste(getwd(), "/spatial_files/PHU_boundaries.geojson", sep = "")
 # #write file
 # st_write(obj = PHU_boundaries_sf,  dsn = outname, driver = "GeoJSON")
 # 
-# PHU_boundaries <- geojsonio::geojson_read("./spatial_files/Ministry_of_Health_Public_Health_Unit_Boundary.geojson", what = "sp")
-# PHU_boundaries_sf <- sf::st_as_sf(PHU_boundaries)
-
-#read file 
-PHU_boundaries <- geojsonio::geojson_read(outname, what = "sp")
+PHU_boundaries <- geojsonio::geojson_read("./spatial_files/Ministry_of_Health_Public_Health_Unit_Boundary.geojson", what = "sp")
 PHU_boundaries_sf <- sf::st_as_sf(PHU_boundaries)
 
-
-#read CSV file in 
-setwd("C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotSpotTracker/")
 
 #grab file 
 loc <- "https://data.ontario.ca/dataset/f4112442-bdc8-45d2-be3c-12efae72fb27/resource/455fd63b-603d-4608-8216-7d8647f43350/download/conposcovidloc.csv"
@@ -74,7 +67,7 @@ PHU_csums <- data.frame(casestatus %>%
                           dplyr::arrange(Reporting_PHU) 
 )
 #merge file with geojson file 
-cumulatives <- merge(PHU_boundaries_sf, PHU_csums, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+cumulatives <- merge(PHU_boundaries_sf, PHU_csums, by.x = "PHU_NAME_E", by.y = "Reporting_PHU" )
 #write file 
 #Delete files if exists 
 dirPath <- "C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotSpotTracker/spatial_files/cumulatives/"
@@ -105,7 +98,7 @@ travel_cases <- casestatus %>%
 
 
 #merge file with geojson file 
-travel_cases <- merge(PHU_boundaries_sf, travel_cases, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+travel_cases <- merge(PHU_boundaries_sf, travel_cases, by.x = "PHU_NAME_E", by.y = "Reporting_PHU" )
 #write file 
 #Delete files if exists 
 dirPath <- "C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotSpotTracker/spatial_files/travel/"
@@ -140,7 +133,7 @@ OBCases <- casestatus %>%
 
 
 #merge file with geojson file 
-OBCases <- merge(PHU_boundaries_sf, OBCases, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+OBCases <- merge(PHU_boundaries_sf, OBCases, by.x = "PHU_NAME_E", by.y = "Reporting_PHU" )
 #write file 
 #Delete files if exists 
 dirPath <- "C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotSpotTracker/spatial_files/OB/"
@@ -171,7 +164,7 @@ CC_Cases <- casestatus %>%
 
 
 #merge file with geojson file 
-CC_Cases <- merge(PHU_boundaries_sf, CC_Cases, by.x = "PHU_NAME_ENG", by.y = "Reporting_PHU" )
+CC_Cases <- merge(PHU_boundaries_sf, CC_Cases, by.x = "PHU_NAME_E", by.y = "Reporting_PHU" )
 #write file 
 #Delete files if exists 
 dirPath <- "C:/Users/patri/Documents/covid19/TrackerDashboards/TrackerDashboards/HotSpotTracker/spatial_files/CC/"
